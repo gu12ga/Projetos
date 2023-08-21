@@ -3,82 +3,88 @@ using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
 [Route("controller")]
-public class HealthCheckController: Controller
+public class HealthCheckController : Controller
 {
-[HttpPost(Name = "get")]
-public IActionResult Get([FromBody] Customer customer)
-{
-    using (var context = new Context())
+    private readonly Context _context;
+
+    public HealthCheckController()
     {
-        var query = from c in context.Customer
-                    where c.cpf == customer.cpf
-                    select c;
+        _context = new Context;
+    }
 
-        if (!query.Any())
+    [HttpPost(Name = "get")]
+    public IActionResult Get([FromBody] Customer customer)
+    {
+        var existingCustomer = _context.Customer.FirstOrDefault(c => c.Cpf == customer.Cpf);
+
+        if (existingCustomer == null)
         {
-            context.Customer.Add(customer);
+            AddCustomerAndLoanMatches(customer);
 
-            var loanMatche = new LoanMatches
-            {
-                idLoan = 1,
-                cpf = customer.cpf
-            };
-
-            context.LoanMatches.Add(loanMatche);
-
-            bool x = false;
-
-            if (customer.income >= 5000 && customer.age <= 30)
-            {
-                x = true;
-            }
-            else if (customer.income < 5000 && customer.income > 3000 && customer.location.Equals("SP"))
-            {
-                x = true;
-            }
-            else if (customer.income <= 3000 && customer.location.Equals("SP") && customer.age <= 30)
-            {
-                x = true;
-            }
-
-            if (x)
-            {
-                var loanMatche2 = new LoanMatches
-                {
-                    idLoan = 2,
-                    cpf = customer.cpf
-                };
-
-                context.LoanMatches.Add(loanMatche2);
-            }
-
-            if (customer.income > 5000)
-            {
-                var loanMatche3 = new LoanMatches
-                {
-                    idLoan = 3,
-                    cpf = customer.cpf
-                };
-
-                context.LoanMatches.Add(loanMatche3);
-            }
-
-            context.SaveChanges(); // Salva as alterações no banco de dados
+            _context.SaveChanges();
         }
 
-        var query2 = from lm in context.LoanMatches
-                     join l in context.Loan on lm.idLoan equals l.idLoan
-                     where lm.cpf == customer.cpf
-                     select new { l.type, l.rate };
+        var loansQuery = from lm in _context.LoanMatches
+                         join l in _context.Loan on lm.IdLoan equals l.IdLoan
+                         where lm.Cpf == customer.Cpf
+                         select new { l.Type, l.Rate };
 
         var result = new
         {
-            customer = customer.name,
-            loans = query2
+            CustomerName = customer.Name,
+            Loans = loansQuery
         };
 
         return Ok(result);
     }
-}
 
+    private void AddCustomerAndLoanMatches(Customer customer)
+    {
+        _context.Customer.Add(customer);
+        _context.SaveChanges();
+
+        AddLoanMatchesBasedOnCustomerProfile(customer);
+    }
+
+    private void AddLoanMatchesBasedOnCustomerProfile(Customer customer)
+    {
+        if (IsEligibleForPersonalLoan(customer))
+        {
+            AddLoanMatch(1, customer);
+        }
+
+        if (IsEligibleForGuaranteedLoan(customer))
+        {
+            AddLoanMatch(2, customer);
+        }
+
+        if (IsEligibleForConsolidatedLoan(customer))
+        {
+            AddLoanMatch(3, customer);
+        }
+    }
+
+    private bool IsEligibleForPersonalLoan(Customer customer)
+    {
+        return customer.Income <= 3000;
+    }
+
+    private bool IsEligibleForGuaranteedLoan(Customer customer)
+    {
+        return customer.Income >= 3000 && customer.Income < 5000 && customer.Location.Equals("SP");
+    }
+
+    private bool IsEligibleForConsolidatedLoan(Customer customer)
+    {
+        return customer.Income >= 5000 || (customer.Age < 30 && customer.Location.Equals("SP"));
+    }
+
+    private void AddLoanMatch(int loanId, Customer customer)
+    {
+        _context.LoanMatches.Add(new LoanMatches
+        {
+            IdLoan = loanId,
+            Cpf = customer.Cpf
+        });
+    }
 }

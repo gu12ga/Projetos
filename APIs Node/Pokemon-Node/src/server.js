@@ -1,7 +1,3 @@
 const app = require('./app');
 
-require('dotenv').config();
-
-PORT = process.env.PORT || 3335;
-
-app.listen(PORT, ()=> console.log('Server funcionando'));
+app.listen(3335, ()=> console.log('Server funcionando'));
